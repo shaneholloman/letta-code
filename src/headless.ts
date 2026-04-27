@@ -1409,6 +1409,14 @@ export async function handleHeadlessCommand(
 
   let availableTools =
     agent.tools?.map((t) => t.name).filter((n): n is string => !!n) || [];
+  // Cache the agent from the initial fetch to avoid redundant agents.retrieve
+  // calls on every while-loop iteration.
+  let cachedAgent: AgentState | null = null;
+  // Capture the resolved model (conversation override → agent fallback) so
+  // subsequent while-loop iterations can prepare the correct toolset without
+  // re-fetching the conversation model. This is only for local tool context;
+  // request-scoped override_model should remain reserved for provider fallback.
+  let preparedEffectiveModel: string | null | undefined;
   {
     const initialToolContext = await prepareHeadlessToolExecutionContext({
       agentId: agent.id,
@@ -1416,6 +1424,9 @@ export async function handleHeadlessCommand(
       cachedAgent: agent as AgentState,
     });
     availableTools = initialToolContext.availableTools;
+    cachedAgent = initialToolContext.preparedToolContext.agent;
+    preparedEffectiveModel =
+      initialToolContext.preparedToolContext.effectiveModel;
   }
 
   // If input-format is stream-json, use bidirectional mode
@@ -1802,7 +1813,8 @@ ${SYSTEM_REMINDER_CLOSE}
         const turnToolContext = await prepareHeadlessToolExecutionContext({
           agentId: agent.id,
           conversationId,
-          overrideModel: overrideModelHandle,
+          overrideModel: overrideModelHandle ?? preparedEffectiveModel,
+          cachedAgent,
         });
         availableTools = turnToolContext.availableTools;
         stream = await sendMessageStream(conversationId, currentInput, {
