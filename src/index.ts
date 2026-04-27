@@ -1502,6 +1502,9 @@ async function main(): Promise<void> {
 
         // Determine which agent we'll be using (before loading tools)
         let resumingAgentId: string | null = null;
+        // Track agent fetched during ID resolution so we can reuse it later
+        // (validatedAgent React state may not be committed yet).
+        let resolvedAgent: AgentState | null = null;
 
         // Priority 1: --agent flag
         if (agentIdArg) {
@@ -1510,8 +1513,11 @@ async function main(): Promise<void> {
             resumingAgentId = agentIdArg;
           } else {
             try {
-              const agent = await client.agents.retrieve(agentIdArg);
+              const agent = await client.agents.retrieve(agentIdArg, {
+                include: ["agent.secrets", "agent.tools"],
+              });
               setValidatedAgent(agent);
+              resolvedAgent = agent;
               resumingAgentId = agentIdArg;
             } catch {
               // Agent doesn't exist, will create new later
@@ -1533,8 +1539,14 @@ async function main(): Promise<void> {
             resumingAgentId = selectedGlobalAgentId;
           } else {
             try {
-              const agent = await client.agents.retrieve(selectedGlobalAgentId);
+              const agent = await client.agents.retrieve(
+                selectedGlobalAgentId,
+                {
+                  include: ["agent.secrets", "agent.tools"],
+                },
+              );
               setValidatedAgent(agent);
+              resolvedAgent = agent;
               resumingAgentId = selectedGlobalAgentId;
             } catch {
               // Selected agent doesn't exist - show selector again
@@ -1710,9 +1722,11 @@ async function main(): Promise<void> {
         if (!agent && resumingAgentId) {
           try {
             agent =
-              validatedAgent && validatedAgent.id === resumingAgentId
-                ? validatedAgent
-                : await client.agents.retrieve(resumingAgentId);
+              resolvedAgent && resolvedAgent.id === resumingAgentId
+                ? resolvedAgent
+                : validatedAgent && validatedAgent.id === resumingAgentId
+                  ? validatedAgent
+                  : await client.agents.retrieve(resumingAgentId);
           } catch (error) {
             // Agent disappeared between validation and now - show selector
             console.error(
@@ -1780,7 +1794,8 @@ async function main(): Promise<void> {
 
         // Init secrets cache — runs in parallel with memfs sync below.
         const secretsInitPromise = import("./utils/secretsStore").then(
-          ({ initSecretsFromServer }) => initSecretsFromServer(agentId),
+          ({ initSecretsFromServer }) =>
+            initSecretsFromServer(agentId, agent ?? undefined),
         );
 
         // Check if we're resuming an existing agent
@@ -1859,7 +1874,7 @@ async function main(): Promise<void> {
         }
 
         const startupAgentId = agent.id;
-        void clearPersistedClientToolRules(startupAgentId)
+        void clearPersistedClientToolRules(startupAgentId, agent)
           .then((cleanup) => {
             if (cleanup) {
               const count = cleanup.removedToolNames.length;
