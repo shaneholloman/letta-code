@@ -68,6 +68,12 @@ import type {
 import { isValidApprovalResponseBody } from "./approval";
 import type { InvalidInputCommand, ParsedServerMessage } from "./types";
 
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
+}
+
 function isRuntimeScope(value: unknown): value is RuntimeScope {
   if (!value || typeof value !== "object") {
     return false;
@@ -100,12 +106,17 @@ function isInputCommand(value: unknown): value is InputCommand {
   const payload = candidate.payload as {
     kind?: unknown;
     messages?: unknown;
+    client_tool_allowlist?: unknown;
     request_id?: unknown;
     decision?: unknown;
     error?: unknown;
   };
   if (payload.kind === "create_message") {
-    return Array.isArray(payload.messages);
+    return (
+      Array.isArray(payload.messages) &&
+      (payload.client_tool_allowlist === undefined ||
+        isStringArray(payload.client_tool_allowlist))
+    );
   }
   if (payload.kind === "approval_response") {
     return isValidApprovalResponseBody(payload);
@@ -137,6 +148,7 @@ function getInvalidInputReason(value: unknown): {
   const payload = candidate.payload as {
     kind?: unknown;
     messages?: unknown;
+    client_tool_allowlist?: unknown;
     request_id?: unknown;
     decision?: unknown;
     error?: unknown;
@@ -147,6 +159,16 @@ function getInvalidInputReason(value: unknown): {
         runtime: candidate.runtime,
         reason:
           "Protocol violation: input.kind=create_message requires payload.messages[]",
+      };
+    }
+    if (
+      payload.client_tool_allowlist !== undefined &&
+      !isStringArray(payload.client_tool_allowlist)
+    ) {
+      return {
+        runtime: candidate.runtime,
+        reason:
+          "Protocol violation: input.payload.client_tool_allowlist must be string[]",
       };
     }
     return null;

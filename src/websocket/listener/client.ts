@@ -4684,6 +4684,7 @@ async function connectWithRetry(
           type: "message",
           agentId: parsed.runtime.agent_id,
           conversationId: parsed.runtime.conversation_id,
+          clientToolAllowlist: inputPayload.client_tool_allowlist,
           messages: inputPayload.messages,
         };
         const hasApprovalPayload = incoming.messages.some(

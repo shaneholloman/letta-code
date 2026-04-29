@@ -14,6 +14,7 @@ import { toolFilter } from "./filter";
 import {
   ANTHROPIC_DEFAULT_TOOLS,
   clearToolsWithLock,
+  filterBuiltInToolNamesByClientAllowlist,
   GEMINI_DEFAULT_TOOLS,
   GEMINI_PASCAL_TOOLS,
   getToolNames,
@@ -138,6 +139,7 @@ export async function prepareToolExecutionContextForResolvedTarget(params: {
   modelIdentifier?: string | null;
   toolsetPreference: ToolsetPreference;
   exclude?: ToolName[];
+  clientToolAllowlist?: string[];
   workingDirectory?: string;
   permissionModeState?: PermissionModeState;
   channelToolScope?: MessageChannelToolDiscoveryScope | null;
@@ -147,6 +149,7 @@ export async function prepareToolExecutionContextForResolvedTarget(params: {
     modelIdentifier,
     toolsetPreference,
     exclude,
+    clientToolAllowlist,
     workingDirectory,
     permissionModeState,
     channelToolScope,
@@ -162,6 +165,7 @@ export async function prepareToolExecutionContextForResolvedTarget(params: {
       effectiveModel ?? undefined,
       {
         exclude,
+        clientToolAllowlist,
         workingDirectory,
         permissionModeState,
         channelToolScope,
@@ -181,10 +185,14 @@ export async function prepareToolExecutionContextForResolvedTarget(params: {
   }
 
   const preparedToolContext = await prepareToolExecutionContextForSpecificTools(
-    getToolNamesForToolset(toolsetPreference, channelToolScope).filter(
-      (toolName) => (exclude ? !exclude.includes(toolName) : true),
+    filterBuiltInToolNamesByClientAllowlist(
+      getToolNamesForToolset(toolsetPreference, channelToolScope).filter(
+        (toolName) => (exclude ? !exclude.includes(toolName) : true),
+      ),
+      clientToolAllowlist,
     ),
     {
+      clientToolAllowlist,
       workingDirectory,
       permissionModeState,
       channelToolScope,
@@ -251,6 +259,7 @@ export async function prepareToolExecutionContextForScope(params: {
   conversationId?: string | null;
   overrideModel?: string | null;
   exclude?: ToolName[];
+  clientToolAllowlist?: string[];
   workingDirectory?: string;
   permissionModeState?: PermissionModeState;
   cachedAgent?: AgentState | null;
@@ -260,6 +269,7 @@ export async function prepareToolExecutionContextForScope(params: {
     conversationId,
     overrideModel,
     exclude,
+    clientToolAllowlist,
     workingDirectory,
     permissionModeState,
     cachedAgent,
@@ -297,6 +307,7 @@ export async function prepareToolExecutionContextForScope(params: {
     modelIdentifier: effectiveModel,
     toolsetPreference,
     exclude,
+    clientToolAllowlist,
     workingDirectory,
     permissionModeState,
     runtimeContext: {

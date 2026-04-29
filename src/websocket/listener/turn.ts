@@ -582,6 +582,7 @@ export async function handleIncomingMessage(
     const preparedToolContext = await prepareToolExecutionContextForScope({
       agentId,
       conversationId,
+      clientToolAllowlist: msg.clientToolAllowlist,
       workingDirectory: turnWorkingDirectory,
       permissionModeState: turnPermissionModeState,
     });
